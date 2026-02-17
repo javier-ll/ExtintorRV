@@ -1,88 +1,97 @@
 using UnityEngine;
-using System.Collections;
 
-namespace FireSim.Environment
+[RequireComponent(typeof(AudioSource))]
+public class FireReactor : MonoBehaviour
 {
-    public class FireReactor : MonoBehaviour
+    [Header("Configuración Vida")]
+    [SerializeField] private float startHealth = 100f;
+    [SerializeField] private float damagePerSecond = 20f;
+    
+    [Header("Audio Dinámico (Arrastra los clips aquí)")]
+    [SerializeField] private AudioClip fireBigClip;    // SFX_FireBig_L
+    [SerializeField] private AudioClip fireMediumClip; // SFX_FireMedium_L
+    [SerializeField] private AudioClip fireSmallClip;  // SFX_FireSmall_L
+    [SerializeField] private AudioClip hissClip;       // cig_extinguish (Sonido de vapor)
+
+    private float currentHealth;
+    private Vector3 initialScale;
+    private AudioSource audioSource;
+    private float lastHissTime = 0f; // Para no saturar el sonido de 'pshh'
+
+    private void Start()
     {
-        [Header("Health Settings")]
-        [Tooltip("Vida total del fuego (0 a 100)")]
-        [SerializeField] private float maxHealth = 100f;
+        currentHealth = startHealth;
+        initialScale = transform.localScale;
+        audioSource = GetComponent<AudioSource>();
         
-        [Tooltip("Cuánto daño hace CADA partícula que toca el fuego")]
-        [SerializeField] private float damagePerParticle = 0.5f;
+        // Empezar con el sonido fuerte
+        if (fireBigClip != null)
+        {
+            audioSource.clip = fireBigClip;
+            audioSource.loop = true;
+            audioSource.Play();
+        }
+    }
+
+    private void Update()
+    {
+        // Actualizar visuales
+        UpdateVisuals();
         
-        [Tooltip("Tiempo antes de regenerarse si dejas de disparar (Opcional)")]
-        [SerializeField] private float regenDelay = 2.0f;
+        // Actualizar Audio (Lógica de transición)
+        UpdateAudioState();
+    }
 
-        [Header("Visuals")]
-        [SerializeField] private GameObject fireVisuals; // El prefab del fuego visual
+    private void OnParticleCollision(GameObject other)
+    {
+        float damage = damagePerSecond * 0.02f;
+        currentHealth -= damage;
 
-        private float _currentHealth;
-        private Vector3 _initialScale;
-        private ParticleSystem _myFireParticles; // Si el asset usa partículas
-
-        private void Start()
+        // Reproducir sonido de "pshhh" (Vapor) al recibir impacto
+        // Usamos un pequeño delay (0.2s) para que no suene como ametralladora
+        if (hissClip != null && Time.time > lastHissTime + 0.2f)
         {
-            _currentHealth = maxHealth;
-            
-            // Asumimos que el fuego empieza a escala 1, o guardamos la actual
-            if (fireVisuals != null)
-                _initialScale = fireVisuals.transform.localScale;
-            else
-                _initialScale = transform.localScale;
-
-            // Intentamos obtener el sistema de partículas del fuego para apagarlo visualmente
-            if(fireVisuals != null)
-                _myFireParticles = fireVisuals.GetComponent<ParticleSystem>();
+            audioSource.PlayOneShot(hissClip, 0.5f); // 0.5f es el volumen
+            lastHissTime = Time.time;
         }
 
-        /// <summary>
-        /// Este método es MÁGICO. Unity lo llama automáticamente cuando
-        /// una partícula con "Send Collision Messages" toca este collider.
-        /// </summary>
-        private void OnParticleCollision(GameObject other)
+        if (currentHealth <= 0)
         {
-            // Verificación de seguridad: ¿Es el extintor?
-            // Podrías usar Tags, pero por ahora asumimos que solo el extintor tira partículas.
-            
-            TakeDamage(damagePerParticle);
+            Extinguish();
         }
+    }
 
-        private void TakeDamage(float amount)
+    private void UpdateVisuals()
+    {
+        float healthPercentage = Mathf.Clamp01(currentHealth / startHealth);
+        transform.localScale = initialScale * healthPercentage;
+    }
+
+    private void UpdateAudioState()
+    {
+        float healthPercentage = currentHealth / startHealth;
+        AudioClip targetClip = fireBigClip;
+
+        // Decidir qué sonido corresponde según la vida
+        if (healthPercentage > 0.6f)       targetClip = fireBigClip;
+        else if (healthPercentage > 0.3f)  targetClip = fireMediumClip;
+        else                               targetClip = fireSmallClip;
+
+        // Solo cambiamos si el clip es diferente al actual (para no reiniciar el audio a cada frame)
+        if (audioSource.clip != targetClip && targetClip != null)
         {
-            _currentHealth -= amount;
-
-            // Feedback Visual: Reducir escala
-            float healthPercent = Mathf.Clamp01(_currentHealth / maxHealth);
-            
-            if (fireVisuals != null)
-            {
-                fireVisuals.transform.localScale = _initialScale * healthPercent;
-            }
-            else 
-            {
-                transform.localScale = _initialScale * healthPercent;
-            }
-
-            // Lógica de muerte
-            if (_currentHealth <= 0)
-            {
-                Extinguish();
-            }
+            float currentTime = audioSource.time; // Guardamos por donde iba la canción
+            audioSource.clip = targetClip;
+            audioSource.time = currentTime; // Continuamos por el mismo punto (si duran lo mismo)
+            audioSource.Play();
         }
+    }
 
-        private void Extinguish()
-        {
-            Debug.Log("¡Fuego Extinguido!");
-            
-            // Opción A: Destruir el objeto
-            // Destroy(gameObject);
-
-            // Opción B (Mejor): Desactivarlo para poder reiniciar la simulación después
-            gameObject.SetActive(false);
-            
-            // Aquí podrías llamar al GameManger para decir "Misión Cumplida"
-        }
+    private void Extinguish()
+    {
+        Debug.Log("¡FUEGO APAGADO!");
+        audioSource.Stop(); // Silencio total
+        gameObject.SetActive(false); 
+        // Aquí podrías enviar señal al ESP32 (Vibración de victoria)
     }
 }

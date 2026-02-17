@@ -7,18 +7,22 @@ namespace FireSim.Interaction
     [RequireComponent(typeof(UnityEngine.XR.Interaction.Toolkit.Interactables.XRGrabInteractable))]
     public class ExtinguisherController : MonoBehaviour
     {
-        [Header("VFX Configuration")]
-        [Tooltip("El sistema de partículas que simula el gas/espuma")]
+        [Header("Componentes")]
         [SerializeField] private ParticleSystem foamParticles;
+        [SerializeField] private GameObject safetyPin; // Arrastra aquí el objeto visual del seguro
         
-        [Tooltip("Intensidad de emisión cuando está activo")]
+        [Header("Configuración")]
         [SerializeField] private float emissionRate = 300f;
 
-        // Estado interno
-        private UnityEngine.XR.Interaction.Toolkit.Interactables.XRGrabInteractable _grabInteractable;
+        // Estado
         private bool _isHeld = false;
         private bool _isTriggerPressed = false;
         private bool _isSpraying = false;
+        
+        // NUEVO: Estado del seguro
+        private bool _isPinRemoved = false;
+
+        private UnityEngine.XR.Interaction.Toolkit.Interactables.XRGrabInteractable _grabInteractable;
 
         private void Awake()
         {
@@ -81,14 +85,28 @@ namespace FireSim.Interaction
             UpdateSprayState();
         }
 
-        // --- Core Logic ---
+        public void RemovePin()
+        {
+            if (!_isPinRemoved)
+            {
+                _isPinRemoved = true;
+                
+                // Feedback visual/sonoro
+                if(safetyPin != null) 
+                {
+                    safetyPin.SetActive(false); // Ocultar el pin (como si lo hubieras sacado)
+                    // Aquí podrías reproducir el sonido 'fire-extinguisher-pin-fall'
+                }
+                
+                Debug.Log("[Extinguisher] Seguro retirado. ¡Armado!");
+            }
+        }
 
-        /// <summary>
-        /// Evalúa las reglas de negocio: Solo dispara si está AGARRADO Y GATILLADO.
-        /// </summary>
+        // Modificamos la lógica de disparo
         private void UpdateSprayState()
         {
-            bool shouldSpray = _isHeld && _isTriggerPressed;
+            // AHORA: Solo dispara si está Agarrado + Gatillo + SIN SEGURO
+            bool shouldSpray = _isHeld && _isTriggerPressed && _isPinRemoved;
 
             if (shouldSpray != _isSpraying)
             {
