@@ -6062,6 +6062,10 @@ PrefabInstance:
       objectReference: {fileID: 0}
     - target: {fileID: 3979475015712627049, guid: 2ccea866ece84274aae8509eedfde84d, type: 3}
       propertyPath: playOnAwake
+      value: 0
+      objectReference: {fileID: 0}
+    - target: {fileID: 3979475015712627049, guid: 2ccea866ece84274aae8509eedfde84d, type: 3}
+      propertyPath: SizeModule.enabled
       value: 1
       objectReference: {fileID: 0}
     - target: {fileID: 3979475015712627049, guid: 2ccea866ece84274aae8509eedfde84d, type: 3}
@@ -6073,12 +6077,52 @@ PrefabInstance:
       value: 1
       objectReference: {fileID: 0}
     - target: {fileID: 3979475015712627049, guid: 2ccea866ece84274aae8509eedfde84d, type: 3}
+      propertyPath: ClampVelocityModule.enabled
+      value: 1
+      objectReference: {fileID: 0}
+    - target: {fileID: 3979475015712627049, guid: 2ccea866ece84274aae8509eedfde84d, type: 3}
+      propertyPath: InitialModule.startSize.scalar
+      value: 3
+      objectReference: {fileID: 0}
+    - target: {fileID: 3979475015712627049, guid: 2ccea866ece84274aae8509eedfde84d, type: 3}
+      propertyPath: InitialModule.startSpeed.scalar
+      value: 12
+      objectReference: {fileID: 0}
+    - target: {fileID: 3979475015712627049, guid: 2ccea866ece84274aae8509eedfde84d, type: 3}
       propertyPath: CollisionModule.collisionMessages
       value: 1
       objectReference: {fileID: 0}
     - target: {fileID: 3979475015712627049, guid: 2ccea866ece84274aae8509eedfde84d, type: 3}
       propertyPath: EmissionModule.rateOverTime.scalar
+      value: 500
+      objectReference: {fileID: 0}
+    - target: {fileID: 3979475015712627049, guid: 2ccea866ece84274aae8509eedfde84d, type: 3}
+      propertyPath: InitialModule.startLifetime.scalar
+      value: 1.5
+      objectReference: {fileID: 0}
+    - target: {fileID: 3979475015712627049, guid: 2ccea866ece84274aae8509eedfde84d, type: 3}
+      propertyPath: InitialModule.startSpeed.minScalar
       value: 10
+      objectReference: {fileID: 0}
+    - target: {fileID: 3979475015712627049, guid: 2ccea866ece84274aae8509eedfde84d, type: 3}
+      propertyPath: InitialModule.startSpeed.minMaxState
+      value: 3
+      objectReference: {fileID: 0}
+    - target: {fileID: 3979475015712627049, guid: 2ccea866ece84274aae8509eedfde84d, type: 3}
+      propertyPath: InitialModule.startLifetime.minScalar
+      value: 1
+      objectReference: {fileID: 0}
+    - target: {fileID: 3979475015712627049, guid: 2ccea866ece84274aae8509eedfde84d, type: 3}
+      propertyPath: ColorModule.gradient.maxGradient.key1.a
+      value: 0.27450982
+      objectReference: {fileID: 0}
+    - target: {fileID: 3979475015712627049, guid: 2ccea866ece84274aae8509eedfde84d, type: 3}
+      propertyPath: InitialModule.startLifetime.minMaxState
+      value: 3
+      objectReference: {fileID: 0}
+    - target: {fileID: 3979475015712627049, guid: 2ccea866ece84274aae8509eedfde84d, type: 3}
+      propertyPath: ClampVelocityModule.magnitude.minMaxState
+      value: 1
       objectReference: {fileID: 0}
     m_RemovedComponents: []
     m_RemovedGameObjects: []
@@ -6998,7 +7042,8 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: 77f0d4596e1fa814d91db975d3797fb2, type: 3}
   m_Name: 
   m_EditorClassIdentifier: Assembly-CSharp::FireSim.Core.BLEManager
-  debugKey: 32
+  udpPort: 5005
+  pythonScriptPath: C:\JAVIER\FACULTAD\REALIDAD VIRTUAL\codigo_extintor2\driver_guante.py
 --- !u!4 &2051674162
 Transform:
   m_ObjectHideFlags: 0

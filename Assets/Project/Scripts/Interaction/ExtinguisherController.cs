@@ -1,6 +1,6 @@
 using UnityEngine;
 using UnityEngine.XR.Interaction.Toolkit;
-using FireSim.Core; // Necesario para ver el BLEManager
+using FireSim.Core; 
 
 namespace FireSim.Interaction
 {
@@ -9,7 +9,7 @@ namespace FireSim.Interaction
     {
         [Header("Componentes")]
         [SerializeField] private ParticleSystem foamParticles;
-        [SerializeField] private GameObject safetyPin; // Arrastra aquí el objeto visual del seguro
+        [SerializeField] private GameObject safetyPin; 
         
         [Header("Configuración")]
         [SerializeField] private float emissionRate = 300f;
@@ -18,8 +18,6 @@ namespace FireSim.Interaction
         private bool _isHeld = false;
         private bool _isTriggerPressed = false;
         private bool _isSpraying = false;
-        
-        // NUEVO: Estado del seguro
         private bool _isPinRemoved = false;
 
         private UnityEngine.XR.Interaction.Toolkit.Interactables.XRGrabInteractable _grabInteractable;
@@ -28,7 +26,6 @@ namespace FireSim.Interaction
         {
             _grabInteractable = GetComponent<UnityEngine.XR.Interaction.Toolkit.Interactables.XRGrabInteractable>();
             
-            // Validación de seguridad (Clean Code)
             if (foamParticles == null)
             {
                 Debug.LogError($"[Extinguisher] Falta asignar el ParticleSystem en {gameObject.name}");
@@ -36,36 +33,31 @@ namespace FireSim.Interaction
             }
         }
 
-        private void OnEnable()
+        private void Start()
         {
-            // 1. Nos suscribimos a eventos de XR (Agarre)
-            // XRIT actualizado usa selectEntered/selectExited
             _grabInteractable.selectEntered.AddListener(OnGrabbed);
             _grabInteractable.selectExited.AddListener(OnReleased);
 
-            // 2. Nos suscribimos al evento del Hardware (BLE)
-            // Verificamos que el Manager exista para evitar errores en Edit Mode
             if (BLEManager.Instance != null)
             {
                 BLEManager.Instance.OnButtonStateChanged += HandleTriggerState;
-                // Sincronizar estado inicial por si ya estaba apretado
                 _isTriggerPressed = BLEManager.Instance.IsButtonPressed;
             }
         }
 
-        private void OnDisable()
+        private void OnDestroy()
         {
-            // Siempre desuscribir eventos para evitar Memory Leaks
-            _grabInteractable.selectEntered.RemoveListener(OnGrabbed);
-            _grabInteractable.selectExited.RemoveListener(OnReleased);
+            if (_grabInteractable != null)
+            {
+                _grabInteractable.selectEntered.RemoveListener(OnGrabbed);
+                _grabInteractable.selectExited.RemoveListener(OnReleased);
+            }
 
             if (BLEManager.Instance != null)
             {
                 BLEManager.Instance.OnButtonStateChanged -= HandleTriggerState;
             }
         }
-
-        // --- Event Handlers (Input) ---
 
         private void OnGrabbed(SelectEnterEventArgs args)
         {
@@ -82,7 +74,7 @@ namespace FireSim.Interaction
         private void HandleTriggerState(bool isPressed)
         {
             _isTriggerPressed = isPressed;
-            UpdateSprayState();
+            UpdateSprayState(); // Se eliminó el Debug.Log spam
         }
 
         public void RemovePin()
@@ -90,23 +82,18 @@ namespace FireSim.Interaction
             if (!_isPinRemoved)
             {
                 _isPinRemoved = true;
-                
-                // Feedback visual/sonoro
-                if(safetyPin != null) 
-                {
-                    safetyPin.SetActive(false); // Ocultar el pin (como si lo hubieras sacado)
-                    // Aquí podrías reproducir el sonido 'fire-extinguisher-pin-fall'
-                }
-                
-                Debug.Log("[Extinguisher] Seguro retirado. ¡Armado!");
+                if(safetyPin != null) safetyPin.SetActive(false); 
+                // Se eliminó el Debug.Log del seguro
             }
         }
 
-        // Modificamos la lógica de disparo
         private void UpdateSprayState()
         {
-            // AHORA: Solo dispara si está Agarrado + Gatillo + SIN SEGURO
-            bool shouldSpray = _isHeld && _isTriggerPressed && _isPinRemoved;
+            // ACTUAL: Dispara directo (ideal para probar sin ponerse el casco)
+            bool shouldSpray = _isTriggerPressed; 
+            
+            // PARA EL PRODUCTO FINAL CON VR: Borra la línea de arriba y quítale las barras a la línea de abajo
+            // bool shouldSpray = _isHeld && _isTriggerPressed && _isPinRemoved;
 
             if (shouldSpray != _isSpraying)
             {
@@ -117,11 +104,17 @@ namespace FireSim.Interaction
 
         private void ToggleParticles(bool active)
         {
+            // Accedemos al módulo de emisión
             var emission = foamParticles.emission;
-            emission.rateOverTime = active ? emissionRate : 0f;
             
-            // Opcional: Feedback háptico en el control VR si quisieras añadirlo aquí
-            // (Aunque tu guante ya es háptico físico).
+            // Simplemente abrimos o cerramos la "llave de paso" del gas
+            emission.enabled = active;
+
+            // Solo necesitamos darle Play la primerísima vez que se usa
+            if (active && !foamParticles.isPlaying)
+            {
+                foamParticles.Play();
+            }
         }
     }
 }

@@ -1,45 +1,43 @@
 using UnityEngine;
 using System;
+using System.Net;
+using System.Net.Sockets;
+using System.Text;
+using System.Threading;
+using System.Diagnostics;
+using Debug = UnityEngine.Debug;
 
-// Namespace para organizar mejor el código y evitar conflictos
 namespace FireSim.Core
 {
-    /// <summary>
-    /// Gestiona la entrada del guante háptico vía Bluetooth (BLE).
-    /// Actúa como Singleton para ser accesible globalmente.
-    /// </summary>
     public class BLEManager : MonoBehaviour
     {
-        // Singleton Instance
         public static BLEManager Instance { get; private set; }
 
-        [Header("BLE Configuration")]
-        [Tooltip("UUID del Servicio BLE del ESP32")]
-        private const string SERVICE_UUID = "4fafc201-1fb5-459e-8fcc-c5c9c331914b";
-        [Tooltip("UUID de la Característica (Botón)")]
-        private const string CHARACTERISTIC_UUID = "beb5483e-36e1-4688-b7f5-ea07361b26a8";
+        [Header("Red / Python Bridge")]
+        [SerializeField] private int udpPort = 5005;
+        
+        [Header("Python SDK Wrapper")]
+        [SerializeField] private string pythonScriptPath = @"C:\JAVIER\FACULTAD\REALIDAD VIRTUAL\codigo_extintor2\driver_guante.py";
+        private Process pythonProcess;
 
-        [Header("Debug / Simulation")]
-        [Tooltip("Tecla para simular el apretar el extintor en el Editor")]
-        [SerializeField] private KeyCode debugKey = KeyCode.Space;
-        
-        // Estado público (Solo lectura desde fuera)
         public bool IsConnected { get; private set; } = false;
-        
-        // Evento: Se dispara cuando cambia el estado del botón (True = Apretado, False = Soltado)
         public event Action<bool> OnButtonStateChanged;
 
-        // Estado interno del botón
         private bool _isButtonPressed = false;
         public bool IsButtonPressed => _isButtonPressed;
 
+        private UdpClient udpClient;
+        private Thread receiveThread;
+        
+        private bool _threadIsButtonPressed = false;
+        private bool _threadStateChanged = false;
+
         private void Awake()
         {
-            // Implementación del patrón Singleton
             if (Instance == null)
             {
                 Instance = this;
-                DontDestroyOnLoad(gameObject); // Persiste entre escenas
+                DontDestroyOnLoad(gameObject);
             }
             else
             {
@@ -49,64 +47,116 @@ namespace FireSim.Core
 
         private void Start()
         {
-            InitializeBLE();
+            StartPythonBridge();
+            InitializeUDPListener();
         }
 
         private void Update()
         {
-            // Lógica de simulación solo para el Editor de Unity
-            #if UNITY_EDITOR
-            HandleEditorInput();
-            #endif
+            // Ya no hay Input de teclado aquí. 
+            // Solo procesamos lo que llega por red desde el hardware real.
+            if (_threadStateChanged)
+            {
+                _threadStateChanged = false;
+                SetButtonState(_threadIsButtonPressed);
+            }
         }
 
-        /// <summary>
-        /// Inicializa la conexión Bluetooth.
-        /// Aquí iría la lógica real del plugin de Android.
-        /// </summary>
-        private void InitializeBLE()
+        private void InitializeUDPListener()
         {
-            Debug.Log($"[BLEManager] Inicializando servicio BLE... ESPERANDO UUID: {SERVICE_UUID}");
+            receiveThread = new Thread(new ThreadStart(ReceiveData));
+            receiveThread.IsBackground = true;
+            receiveThread.Start();
             
-            // TODO: Integrar aquí el plugin nativo (ej: ArduinoBluetoothPlugin)
-            // Por ahora, simulamos una conexión exitosa falsa para probar la lógica
-            IsConnected = true; 
+            IsConnected = true;
+            Debug.Log($"[BLEManager] 🎧 Escuchando a Python en el puerto UDP: {udpPort}");
         }
 
-        /// <summary>
-        /// Simula la entrada del guante usando el teclado.
-        /// </summary>
-        private void HandleEditorInput()
+        private void ReceiveData()
         {
-            if (Input.GetKeyDown(debugKey))
+            try
             {
-                SetButtonState(true);
+                udpClient = new UdpClient(udpPort);
+                IPEndPoint anyIP = new IPEndPoint(IPAddress.Any, 0);
+
+                while (true)
+                {
+                    byte[] data = udpClient.Receive(ref anyIP);
+                    string text = Encoding.UTF8.GetString(data);
+                    
+                    if (text == "1")
+                    {
+                        _threadIsButtonPressed = true;
+                        _threadStateChanged = true;
+                    }
+                    else if (text == "0")
+                    {
+                        _threadIsButtonPressed = false;
+                        _threadStateChanged = true;
+                    }
+                }
             }
-            else if (Input.GetKeyUp(debugKey))
+            catch (Exception e)
             {
-                SetButtonState(false);
+                Debug.Log($"[BLEManager] Error en conexión UDP: {e.Message}");
             }
         }
 
-        /// <summary>
-        /// Método centralizado para cambiar el estado.
-        /// Debe ser llamado por el callback del plugin BLE real.
-        /// </summary>
-        /// <param name="isPressed">Nuevo estado del botón</param>
         public void SetButtonState(bool isPressed)
         {
-            // Evitamos disparar eventos si el estado no cambió realmente
             if (_isButtonPressed != isPressed)
             {
                 _isButtonPressed = isPressed;
-                
-                // Disparamos el evento para quien esté escuchando (El Extintor)
                 OnButtonStateChanged?.Invoke(_isButtonPressed);
-
-                Debug.Log($"[BLEManager] Estado Botón: {(_isButtonPressed ? "ACTIVADO (Gas ON)" : "DESACTIVADO (Gas OFF)")}");
+                // Hemos eliminado el Debug.Log spam del Gas ON/OFF
             }
         }
-        
-        // TODO: Añadir método 'OnDataReceived' cuando tengas el plugin real.
+
+        private void OnApplicationQuit()
+        {
+            if (pythonProcess != null && !pythonProcess.HasExited)
+            {
+                pythonProcess.Kill();
+                pythonProcess.Dispose();
+                Debug.Log("[BLEManager] 🛑 SDK de Python cerrado.");
+            }
+
+            if (receiveThread != null) receiveThread.Abort();
+            if (udpClient != null) udpClient.Close();
+        }
+
+        private void StartPythonBridge()
+        {
+            try
+            {
+                Debug.Log("[BLEManager] 🚀 Iniciando SDK de Hardware (Python) en segundo plano...");
+                
+                pythonProcess = new Process();
+                pythonProcess.StartInfo.FileName = "py"; 
+                pythonProcess.StartInfo.Arguments = $"\"{pythonScriptPath}\"";
+                pythonProcess.StartInfo.UseShellExecute = false;
+                pythonProcess.StartInfo.CreateNoWindow = true; 
+                
+                pythonProcess.StartInfo.RedirectStandardOutput = true;
+                pythonProcess.StartInfo.RedirectStandardError = true;
+                
+                pythonProcess.OutputDataReceived += (sender, args) => {
+                    if (!string.IsNullOrEmpty(args.Data)) 
+                        Debug.Log($"<color=cyan>[Python SDK]</color> {args.Data}");
+                };
+                pythonProcess.ErrorDataReceived += (sender, args) => {
+                    if (!string.IsNullOrEmpty(args.Data)) 
+                        Debug.LogError($"<color=red>[Python SDK ERROR]</color> {args.Data}");
+                };
+
+                pythonProcess.Start();
+                pythonProcess.BeginOutputReadLine();
+                pythonProcess.BeginErrorReadLine();
+            }
+            catch (Exception e)
+            {
+                Debug.LogError($"[BLEManager] Error CRÍTICO al lanzar Python: {e.Message}");
+            }
+        }
     }
 }
