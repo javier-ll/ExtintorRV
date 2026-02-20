@@ -16,8 +16,10 @@ namespace FireSim.Core
         [Header("Red / Python Bridge")]
         [SerializeField] private int udpPort = 5005;
         
-        [Header("Python SDK Wrapper")]
-        [SerializeField] private string pythonScriptPath = @"C:\JAVIER\FACULTAD\REALIDAD VIRTUAL\codigo_extintor2\driver_guante.py";
+        [Header("Hardware SDK (.exe)")]
+        [Tooltip("Ruta completa a tu EJECUTABLE (.exe)")]
+        [SerializeField] private string sdkPath = @"C:\Users\fhlla\ExtintorRV\Hardware SDK\driver_guante.exe"; 
+        
         private Process pythonProcess;
 
         public bool IsConnected { get; private set; } = false;
@@ -129,11 +131,16 @@ namespace FireSim.Core
         {
             try
             {
-                Debug.Log("[BLEManager] 🚀 Iniciando SDK de Hardware (Python) en segundo plano...");
+                Debug.Log("[BLEManager] 🚀 Iniciando SDK de Hardware Independiente (.exe)...");
                 
                 pythonProcess = new Process();
-                pythonProcess.StartInfo.FileName = "py"; 
-                pythonProcess.StartInfo.Arguments = $"\"{pythonScriptPath}\"";
+                
+                // 1. AHORA EJECUTAMOS EL .EXE DIRECTAMENTE
+                pythonProcess.StartInfo.FileName = sdkPath; 
+                
+                // 2. YA NO HAY ARGUMENTOS
+                pythonProcess.StartInfo.Arguments = ""; 
+                
                 pythonProcess.StartInfo.UseShellExecute = false;
                 pythonProcess.StartInfo.CreateNoWindow = true; 
                 
@@ -142,11 +149,11 @@ namespace FireSim.Core
                 
                 pythonProcess.OutputDataReceived += (sender, args) => {
                     if (!string.IsNullOrEmpty(args.Data)) 
-                        Debug.Log($"<color=cyan>[Python SDK]</color> {args.Data}");
+                        Debug.Log($"<color=cyan>[Hardware SDK]</color> {args.Data}");
                 };
                 pythonProcess.ErrorDataReceived += (sender, args) => {
                     if (!string.IsNullOrEmpty(args.Data)) 
-                        Debug.LogError($"<color=red>[Python SDK ERROR]</color> {args.Data}");
+                        Debug.LogError($"<color=red>[Hardware SDK ERROR]</color> {args.Data}");
                 };
 
                 pythonProcess.Start();
@@ -155,7 +162,7 @@ namespace FireSim.Core
             }
             catch (Exception e)
             {
-                Debug.LogError($"[BLEManager] Error CRÍTICO al lanzar Python: {e.Message}");
+                Debug.LogError($"[BLEManager] Error CRÍTICO al lanzar el SDK: {e.Message}");
             }
         }
     }
