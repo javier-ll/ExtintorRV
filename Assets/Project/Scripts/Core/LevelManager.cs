@@ -5,7 +5,7 @@ public class LevelManager : MonoBehaviour
 {
     public void LoadGame()
     {
-        SceneManager.LoadScene("GameLevel");
+        SceneManager.LoadScene("JuegoFinal");
     }
 
     public void LoadMenu()
@@ -15,7 +15,7 @@ public class LevelManager : MonoBehaviour
 
     public void LoadResults()
     {
-        SceneManager.LoadScene("Results");
+        SceneManager.LoadScene("Resultados");
     }
 
     public void QuitGame()
