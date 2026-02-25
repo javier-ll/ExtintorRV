@@ -5,7 +5,8 @@ public class LevelManager : MonoBehaviour
 {
     public void LoadGame()
     {
-        SceneManager.LoadScene("JuegoFinal");
+        //SceneManager.LoadScene("JuegoFinal");
+        SceneManager.LoadScene("Juego");
     }
 
     public void LoadMenu()
