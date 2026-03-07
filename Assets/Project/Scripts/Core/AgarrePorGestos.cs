@@ -2,25 +2,25 @@ using UnityEngine;
 using UnityEngine.XR.Hands;
 using UnityEngine.XR.Interaction.Toolkit;
 using System.Collections.Generic;
-using TMPro; // Necesario para el texto UI
 
 public class AgarrePorGestos : MonoBehaviour
 {
+    public enum GestoDeAgarre { Puno, Pellizco }
+
     [Header("Referencias XRI")]
-    [Tooltip("Arrastra aquí el Direct Interactor de esta mano")]
     [SerializeField] private XRDirectInteractor interactorMano;
 
     [Header("Configuración de Mano")]
     [SerializeField] private Handedness manoAUsar = Handedness.Right;
+    [Tooltip("Elige qué gesto activa el agarre en esta mano")]
+    [SerializeField] private GestoDeAgarre gestoRequerido = GestoDeAgarre.Puno;
 
-    [Header("Calibración del Puño (Ajustable)")]
-    [Tooltip("Distancia en metros para considerar el dedo cerrado")]
+    [Header("Calibración Matemática")]
     [SerializeField] private float limiteIndexFlexionado = 0.11f;
-    [SerializeField] private float limiteMiddleFlexionado = 0.075f;
+    [SerializeField] private float limiteMiddleFlexionado = 0.08f;
     [SerializeField] private float limiteRingLittleFlexionado = 0.07f;
-
-    [Header("Telemetría / Debug")]
-    [SerializeField] private TextMeshProUGUI textoDebug; // Panel de datos
+    [Tooltip("Distancia en metros para el pellizco")]
+    [SerializeField] private float distanciaPellizco = 0.02f;
 
     private XRHandSubsystem handSubsystem;
     private XRInteractionManager interactionManager;
@@ -43,46 +43,41 @@ public class AgarrePorGestos : MonoBehaviour
         var targetHand = manoAUsar == Handedness.Left ? handSubsystem.leftHand : handSubsystem.rightHand;
         if (!targetHand.isTracked) return;
 
-        // 1. Obtenemos posiciones
         targetHand.GetJoint(XRHandJointID.Wrist).TryGetPose(out Pose wrist);
+        targetHand.GetJoint(XRHandJointID.ThumbTip).TryGetPose(out Pose thumbTip);
         targetHand.GetJoint(XRHandJointID.IndexTip).TryGetPose(out Pose indexTip);
         targetHand.GetJoint(XRHandJointID.MiddleTip).TryGetPose(out Pose middleTip);
         targetHand.GetJoint(XRHandJointID.RingTip).TryGetPose(out Pose ringTip);
         targetHand.GetJoint(XRHandJointID.LittleTip).TryGetPose(out Pose pinkyTip);
 
-        // 2. Medimos las distancias en metros
+        // Medir distancias
         float distIndex = Vector3.Distance(indexTip.position, wrist.position);
         float distMiddle = Vector3.Distance(middleTip.position, wrist.position);
         float distRing = Vector3.Distance(ringTip.position, wrist.position);
         float distPinky = Vector3.Distance(pinkyTip.position, wrist.position);
+        float distPinch = Vector3.Distance(thumbTip.position, indexTip.position);
 
-        // 3. Evaluamos si es puño
-        bool esPuno = distIndex < limiteIndexFlexionado &&
-                      distMiddle < limiteMiddleFlexionado &&
-                      distRing < limiteRingLittleFlexionado &&
-                      distPinky < limiteRingLittleFlexionado;
+        // Evaluar qué gesto se está pidiendo
+        bool gestoActivado = false;
 
-        // --- PANEL DE TELEMETRÍA ---
-        if (textoDebug != null)
+        if (gestoRequerido == GestoDeAgarre.Puno)
         {
-            textoDebug.text = $"Umbral Índice: {limiteIndexFlexionado}\n" +
-                              $"Umbral Medio: {limiteMiddleFlexionado}\n" +
-                              $"Umbral Anular y Meñique: {limiteRingLittleFlexionado}\n" +
-                              $"Indice: {distIndex:F3}\n" +
-                              $"Medio:  {distMiddle:F3}\n" +
-                              $"Anular: {distRing:F3}\n" +
-                              $"Meñique:{distPinky:F3}\n" +
-                              $"¿Es Puño?: {esPuno}\n" +
-                              $"¿Tocando Objeto?: {interactorMano.interactablesHovered.Count > 0}";
+            gestoActivado = distIndex < limiteIndexFlexionado &&
+                            distMiddle < limiteMiddleFlexionado &&
+                            distRing < limiteRingLittleFlexionado &&
+                            distPinky < limiteRingLittleFlexionado;
+        }
+        else if (gestoRequerido == GestoDeAgarre.Pellizco)
+        {
+            gestoActivado = distPinch < distanciaPellizco;
         }
 
-        // 4. Lógica de Agarre
-        if (esPuno && !estaAgarrando)
+        // Lógica de Agarre
+        if (gestoActivado && !estaAgarrando)
         {
             if (interactorMano.interactablesHovered.Count > 0)
             {
                 IXRSelectInteractable interactableToGrab = interactorMano.interactablesHovered[0] as IXRSelectInteractable;
-
                 if (interactableToGrab != null)
                 {
                     interactionManager.SelectEnter(interactorMano, interactableToGrab);
@@ -91,7 +86,7 @@ public class AgarrePorGestos : MonoBehaviour
                 }
             }
         }
-        else if (!esPuno && estaAgarrando)
+        else if (!gestoActivado && estaAgarrando)
         {
             if (objetoAgarrado != null)
             {
